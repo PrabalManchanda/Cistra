@@ -1,6 +1,7 @@
 import os
 import json
 from typing import Optional, Dict, Any
+from datetime import datetime
 
 import joblib
 from dotenv import load_dotenv
@@ -486,3 +487,31 @@ async def ai_chat(req: ConversationRequest):
         range_low=final_range_low,
         range_high=final_range_high,
     )
+
+
+# -------------------------------
+# ADDITIONAL ENDPOINTS
+# -------------------------------
+@app.on_event("startup")
+async def startup_event():
+    print("=" * 50)
+    print("🥑 Cistra API Starting...")
+    print(f"Port: {os.getenv('PORT', '8000')}")
+    print(f"Debug: {os.getenv('DEBUG', 'False')}")
+    print(f"Gemini API Key: {'✓ Set' if os.getenv('GEMINI_API_KEY') else '✗ Missing'}")
+    print("=" * 50)
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Cloud Run"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "service": "cistra-api"
+    }
+
+
+@app.get("/")
+async def read_root():
+    return {"message": "Cistra API is running"}
