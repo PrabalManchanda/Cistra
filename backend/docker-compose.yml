@@ -7,7 +7,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - GEMINI_API_KEY="AIzaSyDbQmel4M3svvr5OGa4kNBzTpiTcfwJnm8"
+      - GEMINI_API_KEY=AIzaSyAxv7tSnY3NBsh1uKK_9si6G0fE0aMAYq0
       - PORT=8000
       - DEBUG=True
     volumes:
