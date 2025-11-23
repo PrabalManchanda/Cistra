@@ -1,99 +1,109 @@
 import os
+import joblib
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from pydantic import BaseModel
 from google import genai
-import joblib 
-from dotenv import load_dotenv
+
 load_dotenv()
 
+# --------------------------
+# Load Gemini
+# --------------------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=GEMINI_API_KEY)
+gemini = genai.Client(api_key=GEMINI_API_KEY)
+
+# --------------------------
+# Load ML Model + Scaler
+# --------------------------
+MODEL_PATH = "model/model1-rf/rf_median_model.pkl"
+SCALER_PATH = "model/model1-rf/robust_scaler.pkl"
+
+ml_model = joblib.load(MODEL_PATH)
+scaler = joblib.load(SCALER_PATH)
+
+# --------------------------
+# FastAPI App
+# --------------------------
 app = FastAPI()
-print("Loaded API Key:", GEMINI_API_KEY)
-
-response = client.models.generate_content(
-    model="gemini-2.5-flash",
-    contents="Give prediction for average cost of living in Toronto",
-)
-
-print(response.text)
 
 
+# --------------------------
+# Request/Response Schemas
+# --------------------------
+class ChatRequest(BaseModel):
+    prompt: str
 
 
-
-# # ---------- 1) Load Gemini client ----------
-# gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-
-# # ---------- 2) Load your ML model ----------
-# # Example: scikit-learn model saved as model.pkl
-# MODEL_PATH = "model.pkl"
-# ml_model = joblib.load(MODEL_PATH)
-
-# # ---------- Request/Response models ----------
-
-# class ChatRequest(BaseModel):
-#     prompt: str
-
-# class ChatResponse(BaseModel):
-#     reply: str
-
-# class PredictRequest(BaseModel):
-#     features: list[float]  # adjust to your model input
-
-# class PredictResponse(BaseModel):
-#     prediction: float | int | str  # adjust to your output
-
-# class SmartRequest(BaseModel):
-#     text: str
-#     features: list[float]
-
-# class SmartResponse(BaseModel):
-#     gemini_summary: str
-#     ml_prediction: float | int | str
+class ChatResponse(BaseModel):
+    reply: str
 
 
-# # ---------- 3) Endpoint to talk to Gemini ----------
-
-# @app.post("/gemini-chat", response_model=ChatResponse)
-# async def gemini_chat(req: ChatRequest):
-#     response = gemini_client.models.generate_content(
-#         model="gemini-1.5-flash",
-#         contents=req.prompt,
-#     )
-#     # response.text is the combined output (client handles parts)
-#     return ChatResponse(reply=response.text)
+class PredictRequest(BaseModel):
+    features: list[float]
 
 
-# # ---------- 4) Endpoint to talk to your ML model ----------
-
-# @app.post("/predict", response_model=PredictResponse)
-# async def predict(req: PredictRequest):
-#     # Example: model expects [ [f1, f2, f3, ...] ]
-#     pred = ml_model.predict([req.features])[0]
-#     return PredictResponse(prediction=pred)
+class PredictResponse(BaseModel):
+    prediction: float
 
 
-# # ---------- 5) Endpoint that uses BOTH ----------
+class SmartRequest(BaseModel):
+    text: str
+    features: list[float]
 
-# @app.post("/smart-endpoint", response_model=SmartResponse)
-# async def smart_endpoint(req: SmartRequest):
-#     # Step 1: Use your ML model
-#     pred = ml_model.predict([req.features])[0]
 
-#     # Step 2: Ask Gemini to explain / summarize
-#     prompt = f"""
-#     A model predicted value: {pred}.
-#     Input description: {req.text}.
-#     Explain this prediction to a non-technical user in 3–4 sentences.
-#     """
+class SmartResponse(BaseModel):
+    gemini_summary: str
+    ml_prediction: float
 
-#     gemini_resp = gemini_client.models.generate_content(
-#         model="gemini-1.5-flash",
-#         contents=prompt,
-#     )
 
-#     return SmartResponse(
-#         gemini_summary=gemini_resp.text,
-#         ml_prediction=pred
-#     )
+# --------------------------
+# 1) Gemini Chat
+# ----------AI-chat", response_model=ChatResponse)
+async def gemini_chat(req: ChatRequest):
+    response = gemini.models.generate_content(
+        model="gemini-1.5-flash",
+        contents=req.prompt,
+    )
+    return ChatResponse(reply=response.text)
+
+
+# --------------------------
+# 2) ML Model Prediction
+# --------------------------
+@app.post("/predict", response_model=PredictResponse)
+async def predict(req: PredictRequest):
+
+    # scale input
+    scaled = scaler.transform([req.features])
+
+    # predict
+    pred = ml_model.predict(scaled)[0]
+
+    return PredictResponse(prediction=float(pred))
+
+
+# --------------------------
+# 3) Smart Endpoint (Gemini + ML Together)
+# --------------------------
+@app.post("/smart-endpoint", response_model=SmartResponse)
+async def smart_endpoint(req: SmartRequest):
+
+    scaled = scaler.transform([req.features])
+    pred = ml_model.predict(scaled)[0]
+
+    prompt = f"""
+    A cost-of-living prediction model gave the value: {pred}.
+    Context: {req.text}
+    Explain this prediction clearly in 3–5 sentences.
+    """
+
+    gemini_resp = gemini.models.generate_content(
+        model="gemini-1.5-flash",
+        contents=prompt,
+    )
+
+    return SmartResponse(
+        gemini_summary=gemini_resp.text,
+        ml_prediction=float(pred)
+    )
