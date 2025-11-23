@@ -7,7 +7,8 @@ Transpose to move rows to columns and columns to rows
 Created a “median” column to calculate the median of the values in each row
 Renaming the column values to one word features:
 EDA:
-![Cost Distribution]("https://github.com/user-attachments/assets/65c732db-c530-41e5-9c46-c39dddeae2d3" )
+
+![Cost Distribution]("https://github.com/user-attachments/assets/65c732db-c530-41e5-9c46-c39dddeae2d3")
 
 
 
